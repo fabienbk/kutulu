@@ -1,12 +1,30 @@
-sealed trait Tile
+import scala.collection.mutable.HashMap
 
+sealed trait Tile
 case object Wall extends Tile
 case object Empty extends Tile
 case object Spawn extends Tile
 
 case class Level(lines: Seq[String]) {
 
+  def updateDangerHeatMap() = {
+    for(y <- 0 until height) {
+      for (x <- 0 until width) {
+        dangerMap(y)(x) = grid(y)(x) match {
+          case Spawn => 4
+          case _ => 0
+        }
+      }
+    }
+    for(wpos <- wanderers.map(_.pos))
+      dangerMap(wpos.y)(wpos.x) += 4
+    // blur
+    Tools.blur(dangerMap, 3)
+  }
+
+
   val grid = Array.ofDim[Tile](lines.length, lines(0).length)
+  val dangerMap = Array.ofDim[Int](lines.length, lines(0).length)
 
   for(y <- 0 to lines.length - 1)
     for(x <- 0 to lines(y).length - 1)
@@ -20,18 +38,31 @@ case class Level(lines: Seq[String]) {
   def width = grid(0).length
   def height = grid.length
 
-  var actors: List[Actor] = List()
+  var actors: HashMap[Int, Actor] = HashMap.empty[Int, Actor];
   var allExplorers: List[Explorer] = List()
   var explorers: List[Explorer] = List()
   var wanderers: List[Wanderer] = List()
-  var player: Explorer = Explorer(Position(0, 0))
+  var player: Explorer = null
 
-  def addActor(actor: Actor, isPlayer: Boolean = false): Unit = {
-    actor match {
-      case e @ Explorer (pos)  if isPlayer => player.pos.set(pos); allExplorers ::= e; actors ::= e
-      case e @ Explorer(pos)  => allExplorers ::= e; actors ::= e; explorers ::= e
-      case w @ Wanderer(pos)  => wanderers ::= w; actors ::= w
-    }
+  def setActor(actor: Actor, isPlayer: Boolean = false): Unit = {
+    val actorToUpdate = actors.getOrElseUpdate(actor.id, {
+      actor match {
+        case e @ Explorer (id, pos)  if isPlayer => allExplorers ::= e; player = e
+        case e @ Explorer(id, pos)  => allExplorers ::= e; explorers ::= e
+        case w @ Wanderer(id, pos)  => wanderers ::= w
+      }
+      actor
+    })
+
+    // Update actor data
+    actorToUpdate.pos = actor.pos
+  }
+
+  override def toString(): String = {
+    grid.map(_.map(_.toString.charAt(0)).mkString("")).mkString("\n") + "\n" +
+      "Player   : " +player.toString + "\n" +
+      "Explorers: " +explorers.toString + "\n" +
+      "Wanderers: " +wanderers.toString
   }
 
 }

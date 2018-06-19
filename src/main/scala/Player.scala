@@ -2,10 +2,6 @@ import math._
 import scala.collection.immutable
 import scala.util._
 
-/**
-  * Survive the wrath of Kutulu
-  * Coded fearlessly by JohnnyYuge & nmahoude (ok we might have been a bit scared by the old god...but don't say anything)
-  **/
 object Player extends App {
   val width = readInt
   val height = readInt
@@ -18,7 +14,6 @@ object Player extends App {
   // wandererlifetime: how many turns the wanderer is on map after spawning, always 40 until wood 1
   val Array(sanitylosslonely, sanitylossgroup, wandererspawntime, wandererlifetime) = for(i <- readLine split " ") yield i.toInt
 
-  // game loop
   while(true) {
     val entitycount = readInt // the first given entity corresponds to your explorer
     for(i <- 0 until entitycount) {
@@ -31,15 +26,19 @@ object Player extends App {
       val param2 = _param2.toInt
 
       entitytype match {
-        case "EXPLORER" if i == 0 => level.addActor(Explorer(id, Position(x,y)), true)
-        case "EXPLORER" => level.addActor(Explorer(id, Position(x,y)))
-        case "WANDERER" => level.addActor(Wanderer(id, Position(x,y)))
+        case "EXPLORER" if i == 0 => level.setActor(Explorer(id, Position(x,y)), true)
+        case "EXPLORER" => level.setActor(Explorer(id, Position(x,y)))
+        case "WANDERER" => level.setActor(Wanderer(id, Position(x,y)))
       }
     }
 
-    // Write an action using println
-    // To debug: Console.err.println("Debug messages...")
+    level.updateDangerHeatMap()
 
+
+    // find the furthest player from any monster/spawn
+    // follow him
+
+    Console.err.println(level.toString)
     println("WAIT") // MOVE <x> <y> | WAIT
   }
 
