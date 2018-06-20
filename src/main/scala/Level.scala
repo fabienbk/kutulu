@@ -1,3 +1,5 @@
+import Tools.blur
+
 import scala.collection.mutable.HashMap
 
 sealed trait Tile
@@ -11,20 +13,28 @@ case class Level(lines: Seq[String]) {
     for(y <- 0 until height) {
       for (x <- 0 until width) {
         dangerMap(y)(x) = grid(y)(x) match {
-          case Spawn => 4
+          case Spawn => 100
           case _ => 0
         }
       }
     }
     for(wpos <- wanderers.map(_.pos))
-      dangerMap(wpos.y)(wpos.x) += 4
-    // blur
-    Tools.blur(dangerMap, 3)
+      dangerMap(wpos.y)(wpos.x) += 100
+
+    for(i <- 1 to 2) {
+      blur(dangerMap, dangerMapBuffer)
+      val oldDangerMap = dangerMap
+      dangerMap = dangerMapBuffer
+      dangerMapBuffer = oldDangerMap
+    }
+    println(dangerMap.map(_.mkString(","))mkString("\n"))
   }
 
 
   val grid = Array.ofDim[Tile](lines.length, lines(0).length)
-  val dangerMap = Array.ofDim[Int](lines.length, lines(0).length)
+
+  var dangerMap = Array.ofDim[Int](lines.length, lines(0).length)
+  var dangerMapBuffer = Array.ofDim[Int](lines.length, lines(0).length)
 
   for(y <- 0 to lines.length - 1)
     for(x <- 0 to lines(y).length - 1)
