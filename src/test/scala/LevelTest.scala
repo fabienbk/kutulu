@@ -27,13 +27,12 @@ class LevelSuite extends FunSuite {
     level.actors.keySet.size should be(6)
     level.explorers.length should be(3)
     level.allExplorers.length should be(4)
-
     level.player.pos should be(Position(1, 1))
 
     println(level)
   }
 
-  test("Danger Map is updated correctly") {
+  test("Danger Map with spawn is updated correctly") {
     val level = Level(List(
       "##########",
       "#........#",
@@ -44,7 +43,69 @@ class LevelSuite extends FunSuite {
       "#........#",
       "##########"))
     level.updateDangerHeatMap()
+    dump(level)
+  }
+
+  test("Danger Map with wanderers is updated correctly") {
+    val level = Level(List(
+      "##########",
+      "#........#",
+      "#........#",
+      "#........#",
+      "#........#",
+      "#........#",
+      "#........#",
+      "##########"))
+    level.setActor(Wanderer(1, Position(3,3)))
+    level.updateDangerHeatMap()
+    dump(level)
+  }
+
+  test("Path finding") {
+    val level = Level(List(
+      "##########",
+      "#........#",
+      "#........#",
+      "#........#",
+      "#........#",
+      "#........#",
+      "#........#",
+      "##########"))
+    level.setActor(Explorer(1, Position(1,1)), true)
+    level.setActor(Wanderer(1, Position(4,3)))
+    level.updateDangerHeatMap()
+
+    val t1 = System.currentTimeMillis()
+    for(i <- 0 to 1000) {
+      val y : Int = (1 + Math.random() * 7).asInstanceOf[Int]
+      val x : Int = (1 + Math.random() * 7).asInstanceOf[Int]
+      level.player.pathTo(Position(x,y), level)
+    }
+    val t2 = System.currentTimeMillis()
+    println((t2-t1)/1000f)
 
   }
 
+
+  test("Danger Map with correct in corners") {
+    val level = Level(List(
+      "######",
+      "#....#",
+      "#.##.#",
+      "#.#..#",
+      "#....#",
+      "######"))
+
+    level.setActor(Wanderer(1, Position(3,1)))
+    level.setActor(Explorer(2, Position(4,1)), true)
+
+    level.updateDangerHeatMap()
+    level.safestPlayerPosition() should be (Position(4,2))
+
+    dump(level)
+  }
+
+  private def dump(level: Level) = {
+    println(level.dangerMap.map(_.mkString(",")) mkString ("\n"))
+  }
 }

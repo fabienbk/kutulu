@@ -3,6 +3,10 @@ import scala.collection.immutable
 import scala.util._
 
 object Player extends App {
+  trait Strategy
+  case object AVOID_ENEMY
+  case object FOLLOW_PEOPLE
+
   val width = readInt
   val height = readInt
 
@@ -34,12 +38,32 @@ object Player extends App {
 
     level.updateDangerHeatMap()
 
+    val maybeTuple = level.closestWandererToPlayer()
+    var closestWanderer : Wanderer = null
+    val mode = maybeTuple match {
+      case Some((w, dist)) if dist < 4 => closestWanderer = w; AVOID_ENEMY
+      case _ => FOLLOW_PEOPLE
+    }
 
-    // find the furthest player from any monster/spawn
-    // follow him
+    var position = level.player.pos
+    if (mode == AVOID_ENEMY) {
+      position = level.safestPlayerPosition()
+    }
+    else {
+      // find the furthest player from any monster/spawn
+      val explorer = level.explorerInSafestPosition()
 
-    Console.err.println(level.toString)
-    println("WAIT") // MOVE <x> <y> | WAIT
+      position = level.player.pathTo(explorer.pos, level, true) match  {
+        case Some(list) => list.head
+        case _ => level.player.pos
+      }
+    }
+
+    //Console.err.println(level.toString)
+    if (position == level.player.pos)
+      println("WAIT " + mode) // MOVE <x> <y> | WAIT
+    else
+      println("MOVE " + position.x + " " + position.y + " " + mode)
   }
 
 }
