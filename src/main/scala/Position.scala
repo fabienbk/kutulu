@@ -1,32 +1,52 @@
-import scala.collection.mutable.{HashSet, HashMap, Set, Map}
+import scala.collection.mutable.{HashSet, HashMap, Map}
 
-case class Position(var x: Int, var y: Int) {
+object Position {
+  var idCounter = 0
+  val closedSet = new HashSet[Position]()
+  val openSet = new HashSet[Position]()
+  val cameFrom = new HashMap[Position, Position]()
+  val gScore = HashMap[Position, Int]().withDefaultValue(Int.MaxValue)
+  val fScore = new HashMap[Position, Int]().withDefaultValue(Int.MaxValue)
+}
+
+case class Position(var x: Int, var y: Int)(implicit val level: Level) {
+  var id = 0
   def set(pos: Position) = {
     x = pos.x
     y = pos.y
+    id = Position.idCounter
+    Position.idCounter = Position.idCounter + 1
     this
   }
 
-  def above : Position = Position(x,y-1)
-  def below : Position = Position(x,y+1)
-  def left : Position = Position(x-1,y)
-  def right : Position = Position(x+1,y)
+  override def toString: String = "("+x+","+y+")"
 
-  def pathTo(target: Position, level : Level, dangerCost : Boolean = false): Option[List[Position]] = genericPathTo(target, level, reconstructPath, dangerCost)
-  def distanceTo(target: Position, level : Level, dangerCost : Boolean = false): Option[Int] = genericPathTo(target, level, measurePath, dangerCost)
+  def above : Position = level.pos(y-1)(x)
+  def below : Position = level.pos(y+1)(x)
+  def left : Position = level.pos(y)(x-1)
+  def right : Position = level.pos(y)(x+1)
+
+  def pathTo(target: Position, dangerCost : Boolean = false): Option[List[Position]] = genericPathTo(target, reconstructPath, dangerCost)
+  def distanceTo(target: Position, dangerCost : Boolean = false): Option[Int] = genericPathTo(target, measurePath, dangerCost)
 
   def genericPathTo[B](target: Position,
-             level : Level,
              func : (Map[Position, Position], Position) => B,
              dangerCost: Boolean): Option[B] = {
 
-    val closedSet = new HashSet[Position]()
-    val openSet = new HashSet[Position]()
+    val closedSet = Position.closedSet
+    val openSet = Position.openSet
+    val cameFrom = Position.cameFrom
+    val gScore = Position.gScore
+    val fScore = Position.fScore
+
+    closedSet.clear()
+    openSet.clear()
+    cameFrom.clear()
+    gScore.clear()
+    fScore.clear()
+
     openSet.add(this)
-    val cameFrom = new HashMap[Position, Position]()
-    val gScore = HashMap[Position, Int]().withDefaultValue(Int.MaxValue)
     gScore(this) = 0
-    val fScore = new HashMap[Position, Int]().withDefaultValue(Int.MaxValue)
     fScore(this) = level.dangerAt(this)
 
     while (!openSet.isEmpty) {

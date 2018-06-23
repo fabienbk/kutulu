@@ -14,7 +14,7 @@ class LevelSuite extends FunSuite {
   }
 
   test("Level is updated correctly") {
-    val level = Level(List("#####", "#.w.#", "#####"))
+    implicit val level = Level(List("#####", "#.w.#", "#####"))
 
     level.setActor(Explorer(1, Position(1, 1)), true)
     level.setActor(Explorer(2, Position(2, 1)))
@@ -26,14 +26,13 @@ class LevelSuite extends FunSuite {
     level.wanderers.length should be(2)
     level.actors.keySet.size should be(6)
     level.explorers.length should be(3)
-    level.allExplorers.length should be(4)
     level.player.pos should be(Position(1, 1))
 
     println(level)
   }
 
   test("Danger Map with spawn is updated correctly") {
-    val level = Level(List(
+    implicit val level = Level(List(
       "##########",
       "#........#",
       "#...w....#",
@@ -47,7 +46,7 @@ class LevelSuite extends FunSuite {
   }
 
   test("Danger Map with wanderers is updated correctly") {
-    val level = Level(List(
+    implicit val level = Level(List(
       "##########",
       "#........#",
       "#........#",
@@ -62,7 +61,7 @@ class LevelSuite extends FunSuite {
   }
 
   test("Path finding") {
-    val level = Level(List(
+    implicit val level = Level(List(
       "##########",
       "#........#",
       "#........#",
@@ -76,19 +75,19 @@ class LevelSuite extends FunSuite {
     level.updateDangerHeatMap()
 
     val t1 = System.currentTimeMillis()
-    for(i <- 0 to 1000) {
+    for(i <- 0 to 100000) {
       val y : Int = (1 + Math.random() * 7).asInstanceOf[Int]
       val x : Int = (1 + Math.random() * 7).asInstanceOf[Int]
       level.player.pathTo(Position(x,y), level)
     }
     val t2 = System.currentTimeMillis()
-    println((t2-t1)/1000f)
+    println((t2-t1))
 
   }
 
 
   test("Danger Map with correct in corners") {
-    val level = Level(List(
+    implicit val level = Level(List(
       "######",
       "#....#",
       "#.##.#",
