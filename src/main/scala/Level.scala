@@ -1,6 +1,5 @@
 import scala.collection.mutable
-import scala.collection.mutable.HashMap
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable.{ArrayBuffer, HashMap, HashSet}
 
 sealed trait Tile
 case object Wall extends Tile
@@ -16,7 +15,9 @@ case class Level(lines: Seq[String]) {
   val neighbours = Array.ofDim[ArrayBuffer[Position]](lines.length, lines(0).length)
   val gridPath = Array.ofDim[Boolean](lines.length, lines(0).length)
   var dangerMap = Array.ofDim[Int](lines.length, lines(0).length)
-  var dangerMapBuffer = Array.ofDim[Int](lines.length, lines(0).length)
+
+  val closedSet = new HashSet[Position]()
+  var distanceMap = Array.ofDim[Int](lines.length, lines(0).length)
 
   var actors: mutable.HashMap[Int, Actor] = HashMap.empty[Int, Actor];
   var explorers: ArrayBuffer[Explorer] = new ArrayBuffer()
@@ -34,8 +35,10 @@ case class Level(lines: Seq[String]) {
         }
         neighbours(y)(x) = new ArrayBuffer(4)
         pos(y)(x) = Position(x,y)(this)
+
       }
     }
+
     // static neighbours
     for (y <- 1 until lines.length - 1) {
       for (x <- 1 until lines(y).length - 1) {
@@ -44,6 +47,33 @@ case class Level(lines: Seq[String]) {
           if (gridAt(op) != Wall) neighbours(y)(x) += op
       }
     }
+
+
+    Console.err.println("Computing distance cache...")
+    val t1 = System.currentTimeMillis()
+    for (y <- 1 until lines.length - 1) {
+      for (x <- 1 until lines(y).length - 1) {
+
+        var pstart = pos(y)(x)
+
+        if (gridAt(pstart) != Wall) {
+          for (ty <- 1 until lines.length - 1) {
+            for (tx <- 1 until lines(y).length - 1) {
+              var pend = pos(ty)(tx)
+              if (gridAt(pend) != Wall && pstart != pend) {
+                val path = pstart.pathingTo(pend).getOrElse(Nil)
+                pstart.pathTo(pend.id) = path
+              }
+            }
+          }
+        }
+      }
+    }
+    val t2 = System.currentTimeMillis()
+    Console.err.println("Computed in " + (t2-t1))
+
+
+    System.gc()
   }
   init
 
@@ -68,8 +98,24 @@ case class Level(lines: Seq[String]) {
 
     var i = 0
     while (i < wanderers.length) {
-      val wpos = wanderers(i).pos
-      Tools.blurDanger(wpos, this)
+      val wanderer = wanderers(i)
+      val wpos = wanderer.pos
+      var danger = wanderer.danger
+
+      if (wanderer.kind == 1) danger = 40
+      else if (wanderer.status == Wanderer.SPAWNING) danger = 10
+      Tools.blurDanger(wpos, this, danger)
+
+      if (wanderer.kind == 1 &&
+        (wanderer.status == Wanderer.STALKING || wanderer.status == Wanderer.RUSHING) &&
+        wanderer.targetId != -1) {
+
+        if (wanderer.targetId == player.id)
+          player.stalked = true
+
+        Tools.markLoS(wanderer.pos, player.pos, this, 800)
+      }
+
       i += 1
     }
   }
@@ -77,9 +123,9 @@ case class Level(lines: Seq[String]) {
   def setActor(actor: Actor, isPlayer: Boolean = false): Unit = {
     val actorToUpdate = actors.getOrElseUpdate(actor.id, {
       actor match {
-        case e @ Explorer (id, pos)  if isPlayer => player = e
-        case e @ Explorer(id, pos)  => explorers += e
-        case w @ Wanderer(id, pos)  => wanderers += w
+        case e @ Explorer (id, pos, plans, sanity)  if isPlayer => player = e
+        case e @ Explorer(id, pos, plans, sanity)  => explorers += e
+        case w @ Wanderer(id, pos, kind, d, status, target)  => wanderers += w
       }
       actor
     })
@@ -105,44 +151,54 @@ case class Level(lines: Seq[String]) {
     return minDist
   }
 
-  def safestPlayerPosition() : Position = {
-    var currBestPosition = player.pos
-    val initDanger = dangerAt(player.pos)
-    var currDanger = initDanger
-    val above = player.pos.above
-    val below = player.pos.below
-    val left = player.pos.left
-    val right = player.pos.right
-    val dangerAbove = dangerAt(above)
-    val dangerBelow = dangerAt(below)
-    val dangerRight = dangerAt(right)
-    val dangerLeft = dangerAt(left)
-
-    if (gridAt(above) != Wall && currDanger >= dangerAbove) {
-      currBestPosition = above
-      currDanger = dangerAbove
+  def recur(position: Position, depth: Int, visit: (Position, Int) => Unit, distanceFromStart : Int = 0): Unit = {
+    if (depth == 0) return
+    closedSet.add(position)
+    visit(position, distanceFromStart)
+    var n = neighboursAt(position)
+    var i = 0
+    while (i < n.length) {
+      if (!closedSet.contains(n(i))) recur(n(i), depth - 1, visit, distanceFromStart + 1)
+      i += 1
     }
-    if (gridAt(below) != Wall && currDanger >= dangerBelow) {
-      currBestPosition = below
-      currDanger = dangerBelow
-    }
-    if (gridAt(left) != Wall && currDanger >= dangerLeft) {
-      currBestPosition = left
-      currDanger = dangerLeft
-    }
-    if (gridAt(right) != Wall && currDanger >= dangerRight) {
-      currBestPosition = right
-      currDanger = dangerRight
-    }
-
-    currBestPosition
   }
+  def explore(position: Position, depth : Int, visit: (Position, Int) => Unit) : Unit = {
+    closedSet.clear()
+    recur(position, depth, visit, 0)
+  }
+
+  def safestPlayerPosition() : Position = {
+    var minDanger : Int = Int.MaxValue
+    var safestPos : Position = null
+    explore(player.pos, 3, (pos,_) => {
+      val d = dangerAt(pos)
+      if (d < minDanger) {
+        minDanger = d
+        safestPos = pos
+      }
+    })
+
+    safestPos
+  }
+
+  def explorersNearPlayer() : Boolean = {
+    var i = 0
+    while (i < explorers.length) {
+      val e = explorers(i)
+      if (e.pos.manhattan2(player.pos)) return true
+      i += 1
+    }
+    return false
+  }
+
+  def explorerCountAt(pos: Position) = explorers.count(_.pos == pos)
+
 
   override def toString(): String = {
     grid.map(_.map(_.toString.charAt(0)).mkString("")).mkString("\n") + "\n" +
       "Player   : " +player.toString + "\n" +
       "Explorers: " +explorers.toString + "\n" +
-      "Wanderers: " +wanderers.toString
+      "Wanderers: " +explorers.toString
   }
 
 }

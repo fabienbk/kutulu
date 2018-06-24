@@ -5,19 +5,21 @@ object Position {
   val closedSet = new HashSet[Position]()
   val openSet = new HashSet[Position]()
   val cameFrom = new HashMap[Position, Position]()
-  val gScore = HashMap[Position, Int]().withDefaultValue(Int.MaxValue)
+  val gScore = new HashMap[Position, Int]().withDefaultValue(Int.MaxValue)
   val fScore = new HashMap[Position, Int]().withDefaultValue(Int.MaxValue)
 }
 
 case class Position(var x: Int, var y: Int)(implicit val level: Level) {
-  var id = 0
-  def set(pos: Position) = {
-    x = pos.x
-    y = pos.y
-    id = Position.idCounter
-    Position.idCounter = Position.idCounter + 1
-    this
+
+  var id = Position.idCounter
+  Position.idCounter = Position.idCounter + 1
+  var pathTo: Array[List[Position]] = Array.fill(level.width * level.height + 1)(Nil)
+
+  def manhattan2(pos: Position): Boolean = {
+    if (Math.abs(pos.x-x) <= 1 && Math.abs(pos.y-y) <= 1) return true
+    (pos.x == x && Math.abs(pos.y-y) <= 2) || (pos.y == y && Math.abs(pos.x-x) <= 2)
   }
+
 
   override def toString: String = "("+x+","+y+")"
 
@@ -26,7 +28,7 @@ case class Position(var x: Int, var y: Int)(implicit val level: Level) {
   def left : Position = level.pos(y)(x-1)
   def right : Position = level.pos(y)(x+1)
 
-  def pathTo(target: Position, dangerCost : Boolean = false): Option[List[Position]] = genericPathTo(target, reconstructPath, dangerCost)
+  def pathingTo(target: Position, dangerCost : Boolean = false): Option[List[Position]] = genericPathTo(target, reconstructPath, dangerCost)
   def distanceTo(target: Position, dangerCost : Boolean = false): Option[Int] = genericPathTo(target, measurePath, dangerCost)
 
   def genericPathTo[B](target: Position,

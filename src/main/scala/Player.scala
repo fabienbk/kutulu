@@ -4,8 +4,10 @@ import scala.util._
 
 object Player extends App {
   trait Strategy
-  case object AVOID_ENEMY
-  case object FOLLOW_PEOPLE
+  case object AVOID_ENEMY extends Strategy
+  case object FOLLOW_PEOPLE extends Strategy
+  case object RUN_TO_PEOPLE extends Strategy
+  case object GET_OUT_STALKER extends Strategy
 
   val width = readInt
   val height = readInt
@@ -35,59 +37,73 @@ object Player extends App {
       val param2 = _param2.toInt
 
       entitytype match {
-        case "EXPLORER" if i == 0 => level.setActor(Explorer(id, level.pos(y)(x)), true)
-        case "EXPLORER" => level.setActor(Explorer(id, level.pos(y)(x)))
-        case "WANDERER" => level.setActor(Wanderer(id, level.pos(y)(x)))
+        case "EXPLORER" if i == 0 => level.setActor(Explorer(id, level.pos(y)(x), plans = param1, sanity = param0), true)
+        case "EXPLORER" => level.setActor(Explorer(id, level.pos(y)(x), plans = param1))
+        case "WANDERER" => level.setActor(Wanderer(id, level.pos(y)(x), 0, 400, status = param1, targetId = param2))
+        case "SLASHER" => level.setActor(Wanderer(id, level.pos(y)(x), 1, 800, status = param1, targetId = param2))
         case _ =>
       }
     }
 
+    var mode : Strategy = FOLLOW_PEOPLE
     def computeNextMove(): String = {
-      var budget: Long = 40
-      val t0 = System.currentTimeMillis()
-
       level.updateDangerHeatMap()
 
-      val t1 = System.currentTimeMillis()
-      budget -= (t1 - t0)
-      if (budget <= 20) return "WAIT"
-
-      val mode = if (level.dangerAt(level.player.pos) > 0) AVOID_ENEMY else FOLLOW_PEOPLE
-
-      val t2 = System.currentTimeMillis()
-      budget -= (t2 - t1)
-      if (budget <= 20) return "WAIT"
-
-      var position = level.player.pos
-      if (mode == AVOID_ENEMY) {
-        position = level.safestPlayerPosition()
+      mode = if (level.player.stalked) {
+        GET_OUT_STALKER
+      }
+      else if (!level.explorersNearPlayer()) {
+        RUN_TO_PEOPLE // safety less important
+      }
+      else if (level.dangerAt(level.player.pos) > 0) {
+        AVOID_ENEMY // best local heuristics
       }
       else {
+        FOLLOW_PEOPLE // Safety important
+      }
+
+      var nextPosition = level.player.pos
+
+      if (mode == AVOID_ENEMY || mode == GET_OUT_STALKER) {
+        val safestPosition = level.safestPlayerPosition()
+        nextPosition = level.player.pathTo(safestPosition, level, true) match {
+          case Some(_ :: x :: _) => x
+          case _ => safestPosition
+        }
+      }
+      else { // FOLLOW_PEOPLE or RUN_TO_PEOPLE
         // find the furthest player from any monster/spawn
         val explorer = level.explorerInSafestPosition()
-        if (explorer!=null) {
-          val t3 = System.currentTimeMillis()
-          budget -= (t3 - t2)
 
+        if (explorer!=null) {
+          if (mode == RUN_TO_PEOPLE) return "MOVE " + explorer.pos.x + " " + explorer.pos.y
           if (explorer.pos == level.player.pos) return "WAIT"
 
-          position = level.player.pathTo(explorer.pos, level, true) match {
+          nextPosition = level.player.pathTo(explorer.pos, level, true) match {
             case Some(head :: x :: tail) => x
             case _ => return "WAIT"
           }
         }
         else {
-          return "WAIT"
+          return "WAIT" // FOR THE WIN!
         }
       }
 
-      if (position == level.player.pos)
+      if (nextPosition == level.player.pos)
         return "WAIT" // MOVE <x> <y> | WAIT
       else
-        return "MOVE " + position.x + " " + position.y
+        return "MOVE " + nextPosition.x + " " + nextPosition.y
     }
 
-    println(computeNextMove())
+    var nextMove = computeNextMove()
+
+    if (nextMove == "WAIT") {
+      if (level.explorerCountAt(level.player.pos) > 0) {
+        nextMove = "PLAN"
+      }
+    }
+
+    println(nextMove + " " + mode)
   }
 
 }

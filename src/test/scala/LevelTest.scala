@@ -60,6 +60,38 @@ class LevelSuite extends FunSuite {
     dump(level)
   }
 
+  test("Path finding Cache") {
+
+    //Thread.sleep(10000);
+
+    implicit val level = Level(List(
+      "###########################",
+      "#.........................#",
+      "#.#.#.#.#.#.#.#.#.#.#.#.#.#",
+      "#.........................#",
+      "#.#.#.#.#.#.#.#.#.#.#.#.#.#",
+      "#.........................#",
+      "#.#.#.#.#.#.#.#.#.#.#.#.#.#",
+      "#.........................#",
+      "#.#.#.#.#.#.#.#.#.#.#.#.#.#",
+      "#.........................#",
+      "#.#.#.#.#.#.#.#.#.#.#.#.#.#",
+      "#.........................#",
+      "#.#.#.#.#.#.#.#.#.#.#.#.#.#",
+      "#.........................#",
+      "#.#.#.#.#.#.#.#.#.#.#.#.#.#",
+      "#.........................#",
+      "#.#.#.#.#.#.#.#.#.#.#.#.#.#",
+      "#.........................#",
+      "###########################"))
+
+    val start = level.pos(1)(1).id
+    val end = level.pos(4)(2).id
+    level.distanceMap(start)(end) should be (5)
+
+    Thread.sleep(50000);
+  }
+
   test("Path finding") {
     implicit val level = Level(List(
       "##########",
@@ -99,10 +131,40 @@ class LevelSuite extends FunSuite {
     level.setActor(Explorer(2, Position(4,1)), true)
 
     level.updateDangerHeatMap()
-    level.safestPlayerPosition() should be (Position(4,2))
+    level.safestPlayerPosition() should be (Position(4,3))
 
     dump(level)
   }
+
+
+
+  test("explorer with count") {
+    implicit val level = Level(List(
+      "######",
+      "#....#",
+      "#.##.#",
+      "#.#..#",
+      "#....#",
+      "######"))
+
+    level.setActor(Explorer(1, Position(1,1)), true)
+    level.setActor(Wanderer(2, Position(1,3), 1, 400, status = Wanderer.STALKING, 1))
+    level.updateDangerHeatMap()
+
+    dump(level)
+
+    var minDanger : Int = Int.MaxValue
+    var safestPos : Position = null
+    level.explore(Position(1,1), 3, (pos, dst) => {
+      val d = level.dangerAt(pos)
+      if (d < minDanger) {
+        minDanger = d
+        safestPos = pos
+      }
+    })
+
+    println("safe position is at " + safestPos)
+}
 
   private def dump(level: Level) = {
     println(level.dangerMap.map(_.mkString(",")) mkString ("\n"))
